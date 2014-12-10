@@ -407,6 +407,19 @@ class AdminController extends BaseController
 
     }
 
+    public function retroimportAction()
+    {
+        try {
+            $this->view->initiatives = InitiativeModel::getAll();
+            $this->view->roots = LocationModel::getLocTreeRoots();
+        } catch (Exception $e){
+            $this->view->error = $e->getMessage();
+            Globals::getLog()->err('ADMIN fetch initiatives error: '.$this->view->error);
+            $this->render('error');
+            return false;
+        }
+    }
+
     public function preDispatch()
     {
       $auth = Zend_Auth::getInstance();

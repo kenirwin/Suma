@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<?php $baseDir = Zend_Controller_Front::getInstance()->getBaseUrl(); ?>
+<html>
+    <head>
+        <link rel="stylesheet" type="text/css" href="<?php echo $baseDir; ?>/css/jquery-ui-theme/css/cupertino/jquery-ui-1.10.3.custom.min.css" />
+        <link rel="stylesheet" type="text/css" href="<?php echo $baseDir; ?>/css/admin.css" />
+
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js" type="text/javascript"></script>
+        <script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.10.4/jquery-ui.min.js" type="text/javascript"></script>
+    </head>
+    <body>
+        <?php echo $this->render('admin/header.phtml'); ?>
+        <div>
+        <form id="initForm">
+        <select id="initSelect">
+        <?php
+        foreach($this->initiatives as $init)
+        {
+            echo '<option value="'.$init->getMetadata('id').'">'.$init->getMetadata('title').'</option>';
+        }
+        ?>
+        </select>
+
+        <?php echo $this->render('admin/footer.phtml'); ?>
+    </body>
+</html>
