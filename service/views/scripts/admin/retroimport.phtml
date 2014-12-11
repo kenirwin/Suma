@@ -75,11 +75,12 @@ EOT;
         </select>
 
 	<?	
-
-	if (isset($_REQUEST['retroSubmit'])) { HandleSubmission(); }
 	print ($init_display); 
+	if (isset($_REQUEST['retroSubmit'])) { HandleSubmission(); }
 
 ?>
+
+
         <?php echo $this->render('admin/footer.phtml'); ?>
     </body>
 </html>
@@ -157,9 +158,12 @@ EOT;
 /* functions for Handling Submissions */
 
 function DisplayJSONOutput ($sessions_all) {
-  print "<textarea name=\"json\" id=\"json-output\" cols=\"80\" rows=\"25\">";
+  print '<form action="../sync" method="post">';
+  print "<textarea name=\"json\" id=\"json\" cols=\"80\" rows=\"25\">";
   print (GenerateJSON($sessions_all));
   print "</textarea><br />\n";
+  print '<input type="submit">';
+  print '</form>';
   print "<hr />\n";
 }
 function GenerateJSON($sessions_all, $pretty=true) {
