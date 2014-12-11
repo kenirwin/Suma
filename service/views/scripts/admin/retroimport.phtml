@@ -11,8 +11,22 @@
    $(document).ready(function() {
        $('.details').hide();
        $('#initSelect').bind("mouseup change", function () {
+	   $("#submission-response").hide();
+	   var initID = $(this).val();
 	   $('.details').hide();
-	   $('#details-'+$(this).val()).show();
+	   $('#details-'+initID).show();
+	   $('#datepicker-'+initID).datepicker(); 
+
+	   // for counts with more than one location, display
+	   // sum of all location counts
+	   $(".counts-"+initID).bind("keyup", function () {
+	       var total = 0;
+	       $(".counts-"+initID).each(function(e) {
+		   tmpVal = $(this).val();
+		   total += Number(tmpVal);
+		 }); //end each count
+	       $("#sum-counts-"+initID).html(total);
+	     }); //end keyup
 	 });
      });
    </script>
@@ -27,6 +41,7 @@
    $init_display = '';
         foreach($this->initiatives as $init)
         {
+	  $initID = $init->getMetadata('id');
 	  $activityInputs = getActivityInputs($init);
 	  $locationInputs = getLocationInputs($init);
 	  if ($init->getMetadata('enabled') == 1) {
@@ -36,6 +51,15 @@
 	  $init_display .= '<form>'.PHP_EOL;;
 	  $init_display .= '<input type="hidden" name="initiative" value="'.$init->getMetadata('id').'" />'.PHP_EOL;;
 	  $init_display .= '<h2>Time and Date fo Data Collection</h2>'.PHP_EOL;;
+$init_display .= <<<EOT
+<h4>Time and Date of Data Collection</h4>
+<label for="date" class="required">Data collection date</label>
+<input name="date" type="text" id="datepicker-$initID" class="required-field" /><br />
+		    <label for="time" class="required">Data collection time (e.g. "9:30 pm")</label>
+<input name="time" type="text" class="required-field" /><br />
+EOT;
+
+
 	  $init_display .= '<h2>Counts by location</h2>'.PHP_EOL;;
 	  $init_display .= $locationInputs;
 	  
@@ -43,7 +67,7 @@
 	    $init_display .= '<h2>Activity Details</h2>'.PHP_EOL;;
 	    $init_display .= $activityInputs;
 	  }
-	  $init_display .= '<input type="submit">'.PHP_EOL;
+	  $init_display .= '<input type="submit" name="retroSubmit" value="Submit">'.PHP_EOL;
 	  $init_display .= '</form></div>'.PHP_EOL;;
 
         }
@@ -51,6 +75,8 @@
         </select>
 
 	<?	
+
+	if (isset($_REQUEST['retroSubmit'])) { HandleSubmission(); }
 	print ($init_display); 
 
 ?>
@@ -61,6 +87,7 @@
 <?
     function getLocationInputs($init) {
       $location_inputs = "";
+      $initID = $init->getMetadata('id');
       $obj = json_decode($init->getJSON());
 
       $location_inputs = '<div id="counts-block">' . PHP_EOL;
@@ -68,11 +95,11 @@
       // Get location info
       foreach ($obj->locations->children as $loc) {
 	$location_inputs .= '<label for="counts[' . $loc->id .']">'. $loc->title .'</label>' . PHP_EOL;
-	$location_inputs .= '<input name="counts[' . $loc->id .']" type="text" class="counts"><br />' . PHP_EOL;
+	$location_inputs .= '<input name="counts[' . $loc->id .']" type="text" class="counts-'.$initID.'"><br />' . PHP_EOL;
 	$field_count++;
       } //end foreach location
       if ($field_count > 1) {
-	$location_inputs .= '<div id="display-counts">Total Counts: <span id="sum-counts"></span></div>'. PHP_EOL;
+	$location_inputs .= '<div id="display-counts">Total Counts: <span id="sum-counts-'.$initID.'"></span></div>'. PHP_EOL;
       } //end if more than one location field
       $location_inputs .= '</div><!-- id=counts-block -->' . PHP_EOL;
 
@@ -126,5 +153,85 @@
       //      return $return;
       return $activity_inputs;
     }
+
+/* functions for Handling Submissions */
+
+function DisplayJSONOutput ($sessions_all) {
+  print "<textarea name=\"json\" id=\"json-output\" cols=\"80\" rows=\"25\">";
+  print (GenerateJSON($sessions_all));
+  print "</textarea><br />\n";
+  print "<hr />\n";
+}
+function GenerateJSON($sessions_all, $pretty=true) {
+  $device = "retroSubmit-OOP";
+  $version = "1.1.0";
+  $return = array("device" => $device,
+		  "version" => $version,
+"sessions" => $sessions_all
+		  );
+  if ($pretty == true) {
+    return(json_encode($return, JSON_PRETTY_PRINT));
+  }
+  else {
+    return(json_encode($return));
+  }
+} //end function GenerateJSON
+
+function GenerateOneSession($initiative,$start,$end,$counts,$activity_info=array()) {
+  $temptime = $start;
+  $temp_array = $counts_array = array();
+  foreach ($counts as $loc => $ct) {
+    $temptime++;
+    $temp_array = array ("timestamp" => $temptime,
+			 "number" => intval($ct),
+			 "location" => $loc,
+"activities" => $activity_info
+			 );
+    array_push($counts_array, $temp_array);
+  } //end foreach $counts
+  $session_array = array ("initiativeID" => $initiative,
+			  "startTime" => $start,
+			  "endTime" => $end,
+"counts" => $counts_array
+			  );
+  return $session_array;
+} //end function GenerateOneSession
+
+function HandleSubmission () {
+  $allow_direct_submit = false;
+  $sessions_all = array();
+  $counts = $_REQUEST['counts'];
+  $date = $_REQUEST['date'];
+  $time = $_REQUEST['time'];
+  $start = strtotime("$date $time");
+  $end = $start + array_sum($counts) + 60; //one second per count, plus one minute
+  $initiative = intval($_REQUEST['initiative']);
+  if (isset($_REQUEST['activity_group_names'])) {
+    $activity_info = array();
+    $agNames = preg_split("/;/", $_REQUEST['activity_group_names']);
+    foreach ($agNames as $group) {
+      foreach($_REQUEST[$group] as $k=>$v) {
+	array_push($activity_info, intval($v));
+      } //end foreach activity value in group
+    } //end foreach activity group
+  }//end if isset activityGroupNames
+  else { $activity_info = array ();}
+  $session_array = GenerateOneSession($initiative, $start, $end, $counts, $activity_info);
+  array_push ($sessions_all, $session_array);
+  print '<div id="submission-response">';
+  // disable direct submit if user checked json-only box
+  if (isset($_REQUEST['json-only']) && $_REQUEST['json-only'] == "on") {
+    $allow_direct_submit = false;
+  }
+  if ($allow_direct_submit) {
+    SubmitJSON ($sessions_all);
+  }
+  else {
+    DisplayJSONOutput ($sessions_all);
+  }
+  print '</div><!-- id=submission-response -->';
+} //end function HandleSubmission
+
+
 ?>
 
