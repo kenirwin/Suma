@@ -7,20 +7,124 @@
 
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js" type="text/javascript"></script>
         <script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.10.4/jquery-ui.min.js" type="text/javascript"></script>
+        <script type="text/javascript">
+   $(document).ready(function() {
+       $('.details').hide();
+       $('#initSelect').bind("mouseup change", function () {
+	   $('.details').hide();
+	   $('#details-'+$(this).val()).show();
+	 });
+     });
+   </script>
     </head>
     <body>
         <?php echo $this->render('admin/header.phtml'); ?>
         <div>
         <form id="initForm">
         <select id="initSelect">
+          <option value="">Select an Initiative</option>
         <?php
+   $init_display = '';
         foreach($this->initiatives as $init)
         {
-            echo '<option value="'.$init->getMetadata('id').'">'.$init->getMetadata('title').'</option>';
+	  $activityInputs = getActivityInputs($init);
+	  $locationInputs = getLocationInputs($init);
+	  if ($init->getMetadata('enabled') == 1) {
+            echo '<option value="'.$init->getMetadata('id').'">'.$init->getMetadata('title').'</option>'.PHP_EOL;;
+	  }
+	  $init_display .= '<div class="details" id="details-'.$init->getMetadata('id').'">'.PHP_EOL;;
+	  $init_display .= '<form>'.PHP_EOL;;
+	  $init_display .= '<input type="hidden" name="initiative" value="'.$init->getMetadata('id').'" />'.PHP_EOL;;
+	  $init_display .= '<h2>Time and Date fo Data Collection</h2>'.PHP_EOL;;
+	  $init_display .= '<h2>Counts by location</h2>'.PHP_EOL;;
+	  $init_display .= $locationInputs;
+	  
+	  if (strlen($activityInputs)> 0) {
+	    $init_display .= '<h2>Activity Details</h2>'.PHP_EOL;;
+	    $init_display .= $activityInputs;
+	  }
+	  $init_display .= '<input type="submit">'.PHP_EOL;
+	  $init_display .= '</form></div>'.PHP_EOL;;
+
         }
         ?>
         </select>
 
+	<?	
+	print ($init_display); 
+
+?>
         <?php echo $this->render('admin/footer.phtml'); ?>
     </body>
 </html>
+
+<?
+    function getLocationInputs($init) {
+      $location_inputs = "";
+      $obj = json_decode($init->getJSON());
+
+      $location_inputs = '<div id="counts-block">' . PHP_EOL;
+      $field_count = 0;
+      // Get location info
+      foreach ($obj->locations->children as $loc) {
+	$location_inputs .= '<label for="counts[' . $loc->id .']">'. $loc->title .'</label>' . PHP_EOL;
+	$location_inputs .= '<input name="counts[' . $loc->id .']" type="text" class="counts"><br />' . PHP_EOL;
+	$field_count++;
+      } //end foreach location
+      if ($field_count > 1) {
+	$location_inputs .= '<div id="display-counts">Total Counts: <span id="sum-counts"></span></div>'. PHP_EOL;
+      } //end if more than one location field
+      $location_inputs .= '</div><!-- id=counts-block -->' . PHP_EOL;
+
+      return $location_inputs;
+}
+
+
+    function getActivityInputs ($init) {
+      $return = "";
+      $activity_inputs = "";
+      $activityGroupNames = array();
+      
+      foreach ($init->getActivityGroups() as $ag) {
+	$metadata = $ag->getMetadata();
+	$activities = $ag->getActivities();
+
+	// Get activity options for this group
+	$opts = "";
+
+	foreach ($activities as $act) {
+	  $opts .= ' <option value"' . $act->getMetadata()['id'] . '">' . $act->getMetadata()['title'] . '</option>' . PHP_EOL;
+	}
+
+
+
+	$domID = strtolower(preg_replace("/[^a-zA-Z0-9]+/","_",$metadata['title']));
+	if (isset($metadata['allowMulti'])) {
+	  if ($metadata['allowMulti'] == 1) { //allow selection of more than one answer
+	    $multi = "multiple";
+	    $multiNote = " - <em>(Ctrl-click to select multiple answers)</em>";
+	  }
+	  else {
+	    $multi = $multiNote = "";
+	  } //end if allow multiples
+	}
+	else {
+	  $multi = $multiNote = "";
+	}
+	if (isset($metadata['required'])) {
+	  if ($metadata['required'] == 1) {
+	    $require_text = 'class="required"';
+	    $require_field = 'class="required-field"';
+	  }
+	  else { $require_text = ''; }
+	}
+	else { $require_text = ''; }
+
+	$activity_inputs .= '<h4 '.$require_text .'>'.$metadata['title'] . ' ' . $multiNote . '</h4><select name="'.$domID.'[]" id="'.$domID.'" '. $multi .' '. $require_field .'>' . $opts . '</select>' . PHP_EOL;
+
+      }
+      //      return $return;
+      return $activity_inputs;
+    }
+?>
+
